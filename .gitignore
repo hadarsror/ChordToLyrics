@@ -1,0 +1,29 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+.venv/
+venv/
+ENV/
+.env
+
+# Data & Audio (Crucial to ignore)
+data/raw/*
+data/processed/*
+data/outputs/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/outputs/.gitkeep
+
+# AI Models (They are downloaded at runtime)
+~/.cache/whisper
+~/.cache/demucs
+
+# Docker
+.dockerignore
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  # Message Broker: Stores the queue of songs waiting to be processed
+  redis:
+    image: redis:7-alpine
+    container_name: chord_redis
+    ports:
+      - "6379:6379"
+
+  # Backend API: Handles file uploads and status checks
+  api:
+    build: .
+    container_name: chord_api
+    env_file: .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - redis
+
+  # AI Worker: The heavy lifter that runs Whisper, Demucs, and Madmom
+  worker:
+    build: .
+    container_name: chord_worker
+    env_file: .env
+    # Limit to 1 worker to prevent crashing your 8GB RAM system
+    command: celery -A workers.tasks worker --loglevel=info --concurrency=1
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - redis
