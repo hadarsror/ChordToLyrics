@@ -1,33 +1,25 @@
+# app/services/harmony.py
 import os
-import numpy as np
-from madmom.features.chords import DeepChromaChordRecognitionProcessor, \
-    CNNChordFeatureProcessor
-
+from madmom.features.chords import CNNChordFeatureProcessor, CRFChordRecognitionProcessor
 
 class HarmonyService:
     def __init__(self):
-        # This processor uses a CNN to extract robust harmonic features
+        # 1. Feature Processor (CNN)
         self.feature_processor = CNNChordFeatureProcessor()
-        # This processor decodes those features into actual chord labels (C, G, Am, etc.)
-        self.chord_processor = DeepChromaChordRecognitionProcessor()
+        # 2. Decoder (CRF - Conditional Random Field)
+        # This is the standard match for the CNN processor
+        self.chord_processor = CRFChordRecognitionProcessor()
 
     def extract_chords(self, audio_path: str):
-        """
-        Uses Deep Learning to extract chords with high temporal precision.
-        """
         if not os.path.exists(audio_path):
             raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
-        # 1. Extract features using CNN
+        # This produces the correct feature shape for the CRF processor
         feats = self.feature_processor(audio_path)
-
-        # 2. Decode features into chords with timestamps
-        # Returns an array of (start, end, label)
         decoded_chords = self.chord_processor(feats)
 
         chords_data = []
         for start, end, label in decoded_chords:
-            # We filter out 'N' (No chord/Silence) to keep the sheet clean
             if label != "N":
                 chords_data.append({
                     "timestamp": round(float(start), 3),
