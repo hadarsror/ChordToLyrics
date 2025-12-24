@@ -10,10 +10,11 @@ from app.api.endpoints import router as api_router
 
 app = FastAPI(title="Chord Aligner AI")
 
-# MUST HAVE FOR UI: allows your frontend to talk to this API
+
+# CORS config: Mandatory for the React UI to work
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, change this to your UI URL
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

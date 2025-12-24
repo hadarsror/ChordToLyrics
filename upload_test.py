@@ -2,7 +2,7 @@ import requests
 import time
 
 # 1. Upload the file
-with open("C:\\Users\\hadar\\Downloads\\Ego Death At A Bachelorette Party\\Hayley Williams - Hard.mp3", "rb") as f:
+with open("C:\\Users\\hadar\\Downloads\\Ego Death At A Bachelorette Party\\Hayley Williams - Good Ol' Days.mp3", "rb") as f:
     response = requests.post("http://127.0.0.1:8000/upload", files={"file": f})
     task_id = response.json()["task_id"]
     print(f"Task started! ID: {task_id}")
