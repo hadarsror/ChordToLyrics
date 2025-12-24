@@ -1,45 +1,25 @@
-import os
-import shutil
-from fastapi import APIRouter, UploadFile, File, HTTPException
-from app.core.config import settings
-from workers.tasks import process_audio_task
-from app.models.schemas import TaskResponse
+import logging
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from app.api.endpoints import router as api_router
 
-router = APIRouter()
+app = FastAPI(title="Chord Aligner AI")
 
-@router.post("/upload", response_model=TaskResponse)
-async def upload_audio(file: UploadFile = File(...)):
-    # 1. Use the original filename instead of a UUID
-    # os.path.basename prevents directory traversal attacks
-    filename = os.path.basename(file.filename)
-    storage_path = os.path.join(settings.RAW_DATA_PATH, filename)
+# MUST HAVE FOR UI: allows your frontend to talk to this API
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, change this to your UI URL
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-    # 2. Save file to disk (Overwrites existing to keep data/raw clean)
-    with open(storage_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+app.include_router(api_router)
 
-    # 3. Trigger background worker
-    # Since filename is static, AudioEngine can now hit the cache
-    task = process_audio_task.delay(storage_path)
+@app.get("/")
+async def root():
+    return {"message": "API is running"}
 
-    return {"task_id": task.id, "status": "PENDING"}
-
-@router.get("/status/{task_id}")
-async def get_status(task_id: str):
-    from workers.tasks import celery_app
-    task_result = celery_app.AsyncResult(task_id)
-
-    if task_result.state == "PENDING":
-        return {"status": "PENDING", "result": None}
-
-    elif task_result.state == "SUCCESS":
-        res = task_result.result
-        # Ensure result is serializable and handle error dicts from worker
-        if isinstance(res, dict) and res.get("status") == "ERROR":
-            return {"status": "FAILURE", "result": res.get("message")}
-        return {"status": "SUCCESS", "result": str(res)}
-
-    elif task_result.state == "FAILURE":
-        return {"status": "FAILURE", "result": str(task_result.info)}
-
-    return {"status": task_result.state, "result": None}
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
