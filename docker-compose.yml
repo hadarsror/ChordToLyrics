@@ -16,6 +16,9 @@ services:
     volumes:
       - ./data:/app/data
       - ./app:/app/app  # Hot reload for backend code
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     depends_on:
       - redis
 
@@ -23,19 +26,18 @@ services:
     build: .
     container_name: chord_worker
     env_file: .env
-    command: celery -A workers.tasks worker --loglevel=info --pool=solo
+    command: celery -A workers.tasks worker --loglevel=info
     volumes:
       - ./data:/app/data
+      - ./app:/app/app # Hot reload for worker code
     environment:
-      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
-      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - OMP_NUM_THREADS=1
       - KMP_DUPLICATE_LIB_OK=TRUE
     depends_on:
       - redis
 
-
-  # --- NEW ADDITION ---
   frontend:
     build: ./frontend
     container_name: chord_ui
@@ -47,5 +49,5 @@ services:
       - REACT_APP_API_URL=http://localhost:8000
     depends_on:
       - api
-    stdin_open: true # Fixes "exited with code 0" for React
+    stdin_open: true
     tty: true
