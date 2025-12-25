@@ -23,13 +23,12 @@ services:
     build: .
     container_name: chord_worker
     env_file: .env
-    command: celery -A workers.tasks worker --loglevel=info --concurrency=1
+    command: celery -A workers.tasks worker --loglevel=info --pool=solo
     volumes:
       - ./data:/app/data
     environment:
       - CELERY_BROKER_URL=${CELERY_BROKER_URL}
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
-      # ADD THESE TWO LINES TO FIX THE FREEZE:
       - OMP_NUM_THREADS=1
       - KMP_DUPLICATE_LIB_OK=TRUE
     depends_on:
