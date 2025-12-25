@@ -1,4 +1,5 @@
 import os
+import torch
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -6,11 +7,16 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "Chord Aligner AI"
 
     # AI Config
-    INFERENCE_DEVICE: str = "cpu"
-    WHISPER_MODEL_SIZE: str = "medium"
-    COMPUTE_TYPE: str = "int8"
+    # Auto-detect GPU: If you have an NVIDIA GPU, this will massive speed up the process.
+    INFERENCE_DEVICE: str = "cuda" if torch.cuda.is_available() else "cpu"
 
-    # Path logic: convert relative .env paths to absolute Windows paths
+    # "medium" is the balance. "distil-medium.en" is 6x faster with <1% accuracy loss.
+    # If you want pure speed, change this to "Systran/faster-distil-whisper-medium.en"
+    WHISPER_MODEL_SIZE: str = "medium"
+
+    COMPUTE_TYPE: str = "float16" if torch.cuda.is_available() else "int8"
+
+    # Path logic
     RAW_DATA_PATH: str = "data/raw"
     PROCESSED_DATA_PATH: str = "data/processed"
 
@@ -26,6 +32,5 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
-# Add this to ensure the folders exist the moment the app starts
 os.makedirs(settings.RAW_DATA_PATH, exist_ok=True)
 os.makedirs(settings.PROCESSED_DATA_PATH, exist_ok=True)

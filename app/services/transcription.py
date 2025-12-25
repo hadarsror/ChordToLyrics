@@ -2,23 +2,27 @@
 import os
 from typing import List, Dict
 from faster_whisper import WhisperModel
+from app.core.config import settings
 
 
 class TranscriptionService:
-    def __init__(self, model_size: str = "medium", device: str = "cpu"):
-        # load_model can be slow, so we do it once
+    def __init__(self, model_size: str = "medium", device: str = None):
+        # Use config defaults if not provided
+        device = device or settings.INFERENCE_DEVICE
+        compute_type = settings.COMPUTE_TYPE
+
+        print(
+            f"Loading Whisper Model: {model_size} on {device} ({compute_type})")
         self.model = WhisperModel(model_size, device=device,
-                                  compute_type="int8")
+                                  compute_type=compute_type)
 
     def transcribe(self, audio_path: str, initial_prompt: str = None) -> List[
         Dict]:
         if not os.path.exists(audio_path):
             raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
-        # TUNED PARAMETERS FOR LYRICS:
-        # vad_filter=True: Crucial. Skips silence so the model doesn't hallucinate or get stuck.
-        # beam_size=5: Standard for accuracy without being too slow (7 was okay, but 5 is safer default).
-        # condition_on_previous_text=True: Helps flow, but we add strict thresholds to prevent loops.
+        # We keep beam_size=5 for maximum quality.
+        # The speedup comes from VAD (skipping silence) and GPU usage.
         segments, info = self.model.transcribe(
             audio_path,
             word_timestamps=True,
@@ -33,7 +37,6 @@ class TranscriptionService:
         )
 
         word_data = []
-        # We must iterate completely to ensure we don't drop the generator
         for segment in segments:
             if segment.words:
                 for word in segment.words:
