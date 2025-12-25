@@ -10,6 +10,7 @@ from app.services.aligner import AlignerService
 
 logger = logging.getLogger(__name__)
 
+
 class ChordSheetGenerator:
     def __init__(self):
         self.audio_engine = AudioEngine()
@@ -30,24 +31,44 @@ class ChordSheetGenerator:
         lines = [line.strip() for line in text.split('\n') if line.strip()]
         return " ".join(lines)
 
-    def process_song(self, input_file: str, artist: str = None, title: str = None):
+    def process_song(self, input_file: str, artist: str = None,
+                     title: str = None):
         logger.info(f"Starting pipeline for: {input_file}")
         stems = self.audio_engine.split_stems(input_file)
 
         prompt_guide = None
+        full_lyrics_text = None
+
         if artist and title:
             try:
                 song = self.genius.search_song(title, artist)
                 if song:
-                    # CLEANED PROMPT: We take the first 150 characters of CLEANED text.
-                    # This gives Whisper the vocab for the intro without metadata confusion.
-                    clean_text = self._clean_lyrics(song.lyrics)
-                    prompt_guide = clean_text[:150]
-                    logger.info(f"Cleaned prompt applied: {prompt_guide[:50]}...")
+                    # Clean the lyrics for alignment
+                    full_lyrics_text = self._clean_lyrics(song.lyrics)
+
+                    # For Whisper Prompt: limited context
+                    prompt_guide = full_lyrics_text[:200]
+                    logger.info(
+                        f"Genius lyrics found. Using first 200 chars for prompt.")
             except Exception as e:
                 logger.error(f"Genius API error: {e}")
 
-        words = self.transcriber.transcribe(stems["vocals"], initial_prompt=prompt_guide)
+        # 1. Transcribe (Get Audio Timestamps + Rough Words)
+        raw_words = self.transcriber.transcribe(stems["vocals"],
+                                                initial_prompt=prompt_guide)
+
+        # 2. Sync (Force-Align Genius Text to Audio Timestamps)
+        # If we have official lyrics, this fixes "Wrong Words" and "Missing Words"
+        if full_lyrics_text:
+            logger.info("Aligning Genius lyrics to Whisper timestamps...")
+            final_words = self.aligner.sync_lyrics(raw_words, full_lyrics_text)
+        else:
+            final_words = raw_words
+
+        # 3. Extract Chords
         chords = self.harmony.extract_chords(stems["other"])
-        aligned_data = self.aligner.align(words, chords)
+
+        # 4. Align Words to Chords
+        aligned_data = self.aligner.align(final_words, chords)
+
         return self.aligner.generate_sheet_buffer(aligned_data)
