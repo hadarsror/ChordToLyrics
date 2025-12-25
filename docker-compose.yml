@@ -15,7 +15,8 @@ services:
       - "8000:8000"
     volumes:
       - ./data:/app/data
-      - ./app:/app/app  # Hot reload for backend code
+      - ./app:/app/app
+      - ./workers:/app/workers  # <--- ADD THIS LINE (Live updates for worker code)
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
@@ -26,10 +27,12 @@ services:
     build: .
     container_name: chord_worker
     env_file: .env
-    command: celery -A workers.tasks worker --loglevel=info
+    # Ensure --concurrency=1 is here to prevent crashes
+    command: celery -A workers.tasks worker --loglevel=info --concurrency=1
     volumes:
       - ./data:/app/data
-      - ./app:/app/app # Hot reload for worker code
+      - ./app:/app/app
+      - ./workers:/app/workers  # <--- ADD THIS LINE HERE TOO
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
@@ -44,7 +47,8 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - ./frontend/src:/app/src # Hot reload for React code
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
     environment:
       - REACT_APP_API_URL=http://localhost:8000
     depends_on:
