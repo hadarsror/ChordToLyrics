@@ -1,131 +1,54 @@
-import uuid
 import shutil
 import os
-from pathlib import Path
-from fastapi import APIRouter, UploadFile, File, BackgroundTasks, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException
+from celery.result import AsyncResult
 from app.core.config import settings
-from app.services.orchestrator import ChordSheetGenerator
+
+# This imports the task name so we can send work to it
+# We use send_task to avoid importing heavy libraries in the API
+from workers.tasks import celery_app
 
 router = APIRouter()
 
-# 1. Global In-Memory Job Store
-JOBS = {}
-
-# Initialize the AI Orchestrator once
-orchestrator = ChordSheetGenerator()
-
-
-def parse_filename(filename: str):
-    """
-    Extracts Artist and Title from the filename string.
-    """
-    file_stem = Path(filename).stem
-
-    # Check for the sanitized separator '_-_'
-    if "_-_" in file_stem:
-        parts = file_stem.split("_-_", 1)
-        return parts[0].strip(), parts[1].strip()
-
-    # Check for standard dash separators
-    for sep in [" - ", " – "]:
-        if sep in file_stem:
-            parts = file_stem.split(sep, 1)
-            return parts[0].strip(), parts[1].strip()
-
-    return None, None
-
-
-def process_song_task(task_id: str, file_path: str, artist: str, title: str,
-                      original_filename: str):
-    """
-    Runs the AI pipeline in the background.
-    """
-    try:
-        JOBS[task_id]["status"] = "PROCESSING"
-
-        # 1. Run the full AI pipeline
-        # The orchestrator will now see a clean filepath (e.g., "data/raw/Song.mp3")
-        # preventing Demucs from creating folders with UUIDs.
-        result_sheet = orchestrator.process_song(file_path, artist, title)
-
-        # 2. Save the result to disk
-        file_stem = Path(original_filename).stem
-        output_filename = f"{file_stem}_final_sheet.txt"
-        output_path = os.path.join(settings.PROCESSED_DATA_PATH,
-                                   output_filename)
-
-        with open(output_path, "w", encoding="utf-8") as f:
-            f.write(result_sheet)
-
-        # 3. Update Job Status
-        JOBS[task_id]["status"] = "COMPLETED"
-        JOBS[task_id]["result"] = result_sheet
-        JOBS[task_id]["output_path"] = output_path
-
-    except Exception as e:
-        print(f"Error processing task {task_id}: {e}")
-        JOBS[task_id]["status"] = "FAILED"
-        JOBS[task_id]["error"] = str(e)
-
 
 @router.post("/upload")
-async def upload_song(
-        background_tasks: BackgroundTasks,
-        file: UploadFile = File(...),
-        artist: str = None,
-        title: str = None
-):
-    # 1. Generate unique ID for the Job (Still needed for the frontend to track status)
-    task_id = str(uuid.uuid4())
-
-    # 2. Smart Metadata Extraction
-    if not artist or not title:
-        parsed_artist, parsed_title = parse_filename(file.filename)
-        if parsed_artist and parsed_title:
-            artist = artist or parsed_artist
-            title = title or parsed_title
-
-    # 3. Save raw file locally - WITHOUT UUID
-    # We use the original filename. Be aware this overwrites files with the same name.
+async def upload_song(file: UploadFile = File(...)):
+    # 1. Save the file locally so the Worker can find it
     file_location = os.path.join(settings.RAW_DATA_PATH, file.filename)
 
+    # Write the uploaded file to disk
     with open(file_location, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    # 4. Register the Job
-    JOBS[task_id] = {
-        "status": "PENDING",
-        "filename": file.filename
-    }
+    # 2. Send the task to the Worker (Celery)
+    # "process_audio_task" matches the name in workers/tasks.py
+    task = celery_app.send_task("process_audio_task", args=[file_location])
 
-    # 5. Start the Background Task
-    background_tasks.add_task(
-        process_song_task,
-        task_id,
-        file_location,
-        artist,
-        title,
-        file.filename
-    )
-
-    return {"task_id": task_id}
+    # 3. Return the Task ID to the user immediately
+    return {"task_id": task.id}
 
 
 @router.get("/status/{task_id}")
 async def get_status(task_id: str):
-    job = JOBS.get(task_id)
-
-    if not job:
-        raise HTTPException(status_code=404, detail="Task not found")
+    # 1. Ask Redis about the status of this task ID
+    task_result = AsyncResult(task_id, app=celery_app)
 
     response = {
         "task_id": task_id,
-        "status": job["status"]
+        "status": task_result.status,  # PENDING, STARTED, SUCCESS, FAILURE
     }
 
-    if job["status"] == "COMPLETED":
-        response["result"] = job["result"]
-    elif job["status"] == "FAILED":
-        response["error"] = job.get("error", "Unknown error")
+    # 2. If finished, attach the result
+    if task_result.status == "SUCCESS":
+        # The worker returns a dict like {"status": "SUCCESS", "sheet_text": "..."}
+        # We extract the sheet_text from it
+        data = task_result.result
+        if isinstance(data, dict) and "sheet_text" in data:
+            response["result"] = data["sheet_text"]
+        else:
+            response["result"] = str(data)
+
+    elif task_result.status == "FAILURE":
+        response["error"] = str(task_result.result)
 
     return response

@@ -1,14 +1,12 @@
 version: '3.8'
 
 services:
-  # Message Broker: Stores the queue of songs waiting to be processed
   redis:
     image: redis:7-alpine
     container_name: chord_redis
     ports:
       - "6379:6379"
 
-  # Backend API: Handles file uploads and status checks
   api:
     build: .
     container_name: chord_api
@@ -17,17 +15,38 @@ services:
       - "8000:8000"
     volumes:
       - ./data:/app/data
+      - ./app:/app/app  # Hot reload for backend code
     depends_on:
       - redis
 
-  # AI Worker: The heavy lifter that runs Whisper, Demucs, and Madmom
   worker:
     build: .
     container_name: chord_worker
     env_file: .env
-    # Limit to 1 worker to prevent crashing your 8GB RAM system
     command: celery -A workers.tasks worker --loglevel=info --concurrency=1
     volumes:
       - ./data:/app/data
+    environment:
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
+      # ADD THESE TWO LINES TO FIX THE FREEZE:
+      - OMP_NUM_THREADS=1
+      - KMP_DUPLICATE_LIB_OK=TRUE
     depends_on:
       - redis
+
+
+  # --- NEW ADDITION ---
+  frontend:
+    build: ./frontend
+    container_name: chord_ui
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend/src:/app/src # Hot reload for React code
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+    depends_on:
+      - api
+    stdin_open: true # Fixes "exited with code 0" for React
+    tty: true

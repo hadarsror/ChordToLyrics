@@ -3,15 +3,16 @@ cython>=3.0.0
 setuptools>=65.0.0
 
 # Core Math & Signal Processing
-numpy~=2.3.5
+numpy==1.26.4
 scipy>=1.7.0
 librosa>=0.10.0
 
 # AI Models
 faster-whisper>=1.0.0
 demucs>=4.0.0
-torch
-torchaudio
+torch==2.5.1
+torchaudio==2.5.1
+
 
 # Music Information Retrieval (MIR)
 madmom @ git+https://github.com/CPJKU/madmom.git
@@ -24,5 +25,7 @@ uvicorn>=0.23.0
 python-multipart>=0.0.6
 pydantic~=2.12.5
 pydantic-settings>=2.0.0
-lyricsgenius~=3.7.5
+lyricsgenius==3.7.3
 requests~=2.32.5
+celery
+redis

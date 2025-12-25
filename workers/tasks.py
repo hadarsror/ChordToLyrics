@@ -47,12 +47,23 @@ def process_audio_task(file_path: str):
 
         # Deduplication check
         if os.path.exists(output_path):
+            print(f"DEBUG: File already exists at {output_path}", flush=True)
             with open(output_path, "r", encoding="utf-8") as f:
                 return {"status": "SUCCESS", "sheet_text": f.read()}
 
         logger.info(f"Processing: {artist} - {title} (Folder: {file_stem})")
+
+        # --- DEBUG START ---
+        print(f"DEBUG: 1. Starting generator.process_song for {file_stem}...",
+              flush=True)
+
         sheet_text = generator.process_song(file_path, artist=artist,
                                             title=title)
+
+        print(
+            f"DEBUG: 2. Finished generator.process_song! Length: {len(sheet_text)}",
+            flush=True)
+        # --- DEBUG END ---
 
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(sheet_text)
@@ -61,4 +72,6 @@ def process_audio_task(file_path: str):
 
     except Exception as e:
         logger.error(f"Task failed: {str(e)}")
+        print(f"DEBUG: CRITICAL FAILURE: {str(e)}",
+              flush=True)  # Catch silent crashes
         return {"status": "ERROR", "message": str(e)}

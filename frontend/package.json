@@ -12,10 +12,11 @@
     "concurrently": "^8.2.0"
   },
   "scripts": {
-    "start": "concurrently -n \"API,WEB\" -c \"magenta,cyan\" \"cd .. && uvicorn app.main:app --reload --port 8000\" \"react-scripts start\"",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
+  "start": "react-scripts start",
+  "dev": "concurrently -n \"API,WEB\" -c \"magenta,cyan\" \"cd .. && uvicorn app.main:app --reload --port 8000\" \"react-scripts start\"",
+  "build": "react-scripts build",
+  "test": "react-scripts test",
+  "eject": "react-scripts eject"
   },
   "eslintConfig": {
     "extends": [

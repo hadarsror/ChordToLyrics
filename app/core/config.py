@@ -20,9 +20,13 @@ class Settings(BaseSettings):
     RAW_DATA_PATH: str = "data/raw"
     PROCESSED_DATA_PATH: str = "data/processed"
 
+    # # Redis
+    # CELERY_BROKER_URL: str = "redis://127.0.0.1:6379/0"
+    # CELERY_RESULT_BACKEND: str = "redis://127.0.0.1:6379/0"
+
     # Redis
-    CELERY_BROKER_URL: str = "redis://127.0.0.1:6379/0"
-    CELERY_RESULT_BACKEND: str = "redis://127.0.0.1:6379/0"
+    CELERY_BROKER_URL: str = "redis://redis:6379/0"
+    CELERY_RESULT_BACKEND: str = "redis://redis:6379/0"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
